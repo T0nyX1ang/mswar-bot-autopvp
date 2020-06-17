@@ -52,7 +52,8 @@ class AutoPVPApp(object):
             'maxNumber': 2,
             'round': 1,
             'title': '自动对战测试',
-            'url': 'room/minesweeper/create',            
+            'url': 'room/minesweeper/create', 
+            'password': '',           
         }
         self.__get_ready = {'ready': True, 'url': 'room/ready'}
         self.__start_room = {'url': 'room/start'}
@@ -60,6 +61,7 @@ class AutoPVPApp(object):
         self.__room_info = {'url': 'minesweeper/info'}
         self.__progress = lambda x: {'bv': x, 'url': 'minesweeper/progress'}
         self.__bot_success = lambda bv: {'time': int(bv / self.__bvs * 1000), 'url': 'minesweeper/success', 'bvs': self.__bvs}
+        self.__room_edit_warning_message = {'url': 'room/message', 'msg': '机器人仅支持“双人，非匿名，无雷币，回合数为1，无加密，自动开局，不强制NF，不限制排名”的房间，此房间将作废。'}
 
     def __format_message(self, message):
         return json.dumps(message, separators=(',', ':'), sort_keys=True)
@@ -67,7 +69,9 @@ class AutoPVPApp(object):
     async def run(self):
         async with aiohttp.ClientSession() as session:
             async with session.ws_connect(url=self.__url, heartbeat=10.0, headers=self.__generate_headers()) as ws:
+                logging.info('Entering the whole pvp room ...')
                 await ws.send_str(self.__format_message(self.__enter_room))
+                logging.info('Creating a room ...')
                 await ws.send_str(self.__format_message(self.__create_room))
                 opponent_uid = ''
 
@@ -113,12 +117,22 @@ class AutoPVPApp(object):
                         if 'url' in text_message and text_message['url'] == 'pvp/room/update':
                             if self.__uid in text_message['room']['userIdList']:
                                 logging.info('The room status has been updated ...')
-                                if self.__game_going:
-                                    self.__game_going = False
-                                await ws.send_str(self.__format_message(self.__get_ready))
+                                if not text_message['room']['anonymous'] and text_message['room']['coin'] == 0 and text_message['room']['limitRank'] == 0 and len(text_message['room']['password']) == 0 and text_message['room']['minesweeperAutoOpen'] and not text_message['room']['minesweeperFlagForbidden'] and text_message['room']['round'] == 1 and text_message['room']['maxNumber'] == 2 and text_message['room']['title'] == '自动对战测试': 
+                                    if self.__game_going:
+                                        self.__game_going = False
+                                    await ws.send_str(self.__format_message(self.__get_ready))
+                                else:
+                                    logging.warning('A room was created conflicting rules ...')
+                                    await ws.send_str(self.__format_message(self.__room_edit_warning_message))
+                                    logging.info('Exiting the room ...')
+                                    await ws.send_str(self.__format_message(self.__exit_room))
+                                    logging.info('Re-creating the room ...')
+                                    await ws.send_str(self.__format_message(self.__create_room))
 
                         if 'url' in text_message and text_message['url'] == 'pvp/room/exit':
                             # keep alive
+                            logging.warning('The bot is kicked out of the room ...')
+                            logging.info('Re-creating the room ...')
                             await ws.send_str(self.__format_message(self.__create_room))
 
                     elif msg.type == aiohttp.WSMsgType.ERROR:
