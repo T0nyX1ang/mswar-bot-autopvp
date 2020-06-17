@@ -99,7 +99,7 @@ class AutoPVPApp(object):
                                     logging.info('The battle is ended, bot win ...')
                                     continue
                                 await ws.send_str(self.__format_message(self.__progress(text_message['bv'] + 1)))
-                                time.sleep(0.5) # cold time by bvs
+                                time.sleep(1 / self.__bvs) # cold time by bvs
 
                             elif text_message['uid'] == opponent_uid:
                                 logging.info('opponent solved BV: %d' % (text_message['bv']))
