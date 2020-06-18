@@ -129,8 +129,8 @@ class AutoPVPApp(object):
 
                         if 'url' in text_message and text_message['url'] == 'pvp/room/exit':
                             # keep alive
-                            logging.warning('The bot is kicked out of the room ...')
-                            logging.info('Resuming the room to default configurations ...')
+                            logging.info('The bot left the room ...')
+                            logging.info('Re-creating the room ...')
                             await ws.send_str(self.__format_message(self.__create_room))
 
                         if 'url' in text_message and text_message['url'] == 'pvp/room/user/exit':
@@ -139,7 +139,6 @@ class AutoPVPApp(object):
                             logging.info('Resuming the room to default configurations ...')
                             self.__bvs = 2
                             await ws.send_str(self.__format_message(self.__exit_room))
-                            await ws.send_str(self.__format_message(self.__create_room))
 
                     elif msg.type == aiohttp.WSMsgType.ERROR:
                         logging.error(msg.data)
