@@ -76,6 +76,7 @@ class AutoPVPApp(object):
                 logging.info('Creating a room ...')
                 await ws.send_str(self.__format_message(self.__create_room))
                 opponent_uid = ''
+                self.__game_going = False
 
                 async for msg in ws:
                     if msg.type == aiohttp.WSMsgType.TEXT:
