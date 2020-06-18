@@ -10,4 +10,10 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 app = AutoPVPApp(config=account_config, bvs=2.0)
-asyncio.run(app.run())
+
+try:
+	while True:
+		asyncio.run(app.run())
+except KeyboardInterrupt as e:
+	logging.info('Bot stopped now ...')
+	
