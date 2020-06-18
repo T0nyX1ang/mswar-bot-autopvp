@@ -48,7 +48,7 @@ class AutoPVPApp(object):
             'limitRank': 0,
             'maxNumber': 2,
             'round': 1,
-            'title': '自动对战(暂时勿进)(%s)' % os.urandom(4).hex(),
+            'title': '自动对战测试(%s)' % os.urandom(4).hex(),
             'password': '',
         }
         return default
