@@ -1,11 +1,11 @@
 from base64 import b64encode
 from board import get_board, get_board_result
+from log import logger
 import os
 import json
 import time
 import aiohttp
 import hashlib
-import logging
 
 class AutoPVPApp(object):
     def __init__(self, config, bvs=2.0):
@@ -13,23 +13,7 @@ class AutoPVPApp(object):
         self.__token = config.token
         self.__host = '119.29.91.152:8080'
         self.__url = 'http://' + self.__host + '/MineSweepingWar/socket/pvp/' + self.__uid
-        self.__game_going = False
         self.__bvs = bvs
-        self.__default_room_config = {
-            'anonymous': False,
-            'autoOpen': True,
-            'coin': 0,
-            'column': 8,
-            'row': 8,
-            'mine': 10,
-            'flagForbidden': False,
-            'limitRank': 0,
-            'maxNumber': 2,
-            'round': 1,
-            'title': '自动对战测试',
-            'password': '',
-        }
-        self.__init_message()
 
     def __generate_headers(self):
         timestamp = str(int(time.time() * 1000))
@@ -52,95 +36,175 @@ class AutoPVPApp(object):
         }
         return headers
 
-    def __init_message(self):
-        self.__enter_room = {'version': 107, 'url': "enter"}
-        self.__create_room = self.__default_room_config
-        self.__create_room['url'] = 'room/minesweeper/create'
-        self.__get_ready = {'ready': True, 'url': 'room/ready'}
-        self.__not_get_ready = {'ready': False, 'url': 'room/ready'}
-        self.__start_room = {'url': 'room/start'}
-        self.__exit_room = {'url': 'room/exit'}
-        self.__room_info = {'url': 'minesweeper/info'}
-        self.__progress = lambda x: {'bv': x, 'url': 'minesweeper/progress'}
-        self.__bot_success = lambda bv: {'time': int(bv / self.__bvs * 1000), 'url': 'minesweeper/success', 'bvs': self.__bvs}
-        self.__room_edit_warning_message = {'url': 'room/message', 'msg': '机器人仅支持“双人，非匿名，无雷币，回合数为1，无加密，自动开局，不强制NF，不限制排名”的房间，请重新配置房间设置，否则机器人不会准备游戏。'}
+    def __default_room_config(self):
+        default = {
+            'anonymous': False,
+            'autoOpen': True,
+            'coin': 0,
+            'column': 8,
+            'row': 8,
+            'mine': 10,
+            'flagForbidden': False,
+            'limitRank': 0,
+            'maxNumber': 2,
+            'round': 1,
+            'title': '自动对战(暂时勿进)(%s)' % os.urandom(4).hex(),
+            'password': '',
+        }
+        return default
 
     def __format_message(self, message):
-        return json.dumps(message, separators=(',', ':'), sort_keys=True)
+        ready = json.dumps(message, separators=(',', ':'), sort_keys=True)
+        logger.debug('[Send][->]: %s' % str(ready))
+        return ready
+
+    def __get_enter_room_message(self) -> str:
+        logger.info('The bot is entering the whole pvp room ...')
+        enter_room = {'version': 107, 'url': "enter"}
+        return self.__format_message(enter_room)
+
+    def __get_create_room_message(self) -> str:
+        logger.info('The bot is creating a single battle room ... ')
+        create_room = self.__default_room_config()
+        create_room['url'] = 'room/minesweeper/create'
+        return self.__format_message(create_room)
+
+    def __get_edit_room_message(self, row: int=8, column: int=8, mines: int=10, bvs: float=2.0) -> str:
+        logger.info('The bot is changing the room configurations ...')
+        self.__bvs = bvs
+        edit_room = self.__default_room_config()
+        edit_room.pop('anonymous')
+        edit_room.pop('limitRank')
+        edit_room['column'] = column
+        edit_room['row'] = row
+        edit_room['mines'] = mines
+        edit_room['url'] = 'room/minesweeper/edit'
+        return self.__format_message(edit_room)
+
+    def __get_ready_status_message(self, ready: bool=True) -> str:
+        if ready:
+            logger.info('The bot is getting ready ... ')
+        else:
+            logger.info('The bot is not getting ready ... ')
+        ready_status = {'ready': ready, 'url': 'room/ready'}
+        return self.__format_message(ready_status)
+
+    def __get_start_battle_message(self) -> str:
+        logger.info('The bot is starting a battle ...')
+        start_battle = {'url': 'room/start'}
+        return self.__format_message(start_battle)
+
+    def __get_battle_board_message(self) -> str:
+        logger.info('The bot is analyzing the board ...')
+        battle_board = {'url': 'minesweeper/info'}
+        return self.__format_message(battle_board)
+
+    def __get_battle_progress_message(self, current_bv: int) -> str:
+        logger.info('The bot is solving %d bv ...' % (current_bv))
+        battle_progress = {'bv': current_bv, 'url': 'minesweeper/progress'}
+        return self.__format_message(battle_progress)
+
+    def __get_bot_success_message(self, map_bv: int, finish_time: float) -> str:
+        logger.info('The bot is ready to finish the battle ...')
+        time_in_millisec = int(finish_time * 1000)
+        real_bvs = round(map_bv / finish_time, 3)
+        bot_success = {'time': time_in_millisec, 'url': 'minesweeper/success', 'bvs': real_bvs}
+        return self.__format_message(bot_success)
+
+    def __get_room_edit_warning_message(self) -> str:
+        logger.warning('The bot detected violation of the room rules ...')
+        room_edit_warning = {'url': 'room/message', 'msg': '机器人仅支持“双人，非匿名，无雷币，回合数为1，无加密，自动开局，不强制NF，不限制排名”的房间，请重新设置房间，否则机器人不会准备游戏。'}
+        return self.__format_message(room_edit_warning)
+
+    def __get_exit_room_message(self) -> str:
+        logger.info('The bot is exiting the battle room ...')
+        exit_room = {'url': 'room/exit'}
+        return self.__format_message(exit_room)
 
     async def run(self):
         async with aiohttp.ClientSession() as session:
             async with session.ws_connect(url=self.__url, heartbeat=10.0, headers=self.__generate_headers()) as ws:
-                logging.info('Entering the whole pvp room ...')
-                await ws.send_str(self.__format_message(self.__enter_room))
-                logging.info('Creating a room ...')
-                await ws.send_str(self.__format_message(self.__create_room))
+                await ws.send_str(self.__get_enter_room_message())
+
                 opponent_uid = ''
-                self.__game_going = False
+                is_gaming = False
 
                 async for msg in ws:
                     if msg.type == aiohttp.WSMsgType.TEXT:
+                        logger.debug('[Recv][<-]: %s' % str(msg.data))
                         text_message = json.loads(msg.data)
-                        logging.debug(text_message)
 
-                        if 'ready' in text_message and not self.__game_going:
-                            if text_message['ready'] and text_message['uid'] != self.__uid:
-                                opponent_uid = text_message['uid']
-                                await ws.send_str(self.__format_message(self.__start_room))
+                        if 'url' in text_message:
+                            if not is_gaming:
+                                current_game_started_time = 0
+                                current_game_finished_time = 0
+                                current_game_bv = 0
 
-                        if 'cells' in text_message and not self.__game_going:
-                            board = get_board(text_message['cells'][0].split('-')[0: -1])
-                            board_result = get_board_result(board)
-                            await ws.send_str(self.__format_message(self.__progress(1)))
-                            logging.info('The battle is ready to start, wait for 6 seconds ...')
-                            time.sleep(6) # first cold time
-                            logging.info('The battle is started ...')
-                            self.__game_going = True
-                        
-                        if 'bv' in text_message and self.__game_going:
-                            if text_message['uid'] == self.__uid:
-                                logging.info('bot solved BV: %d' % (text_message['bv']))
-                                if text_message['bv'] == board_result['bv'] and self.__game_going:
-                                    await ws.send_str(self.__format_message(self.__bot_success(board_result['bv'])))
-                                    self.__game_going = False
-                                    logging.info('The battle is ended, bot win ...')
-                                    continue
-                                await ws.send_str(self.__format_message(self.__progress(text_message['bv'] + 1)))
-                                time.sleep(1 / self.__bvs) # cold time by bvs
+                                if text_message['url'] == 'pvp/enter':
+                                    await ws.send_str(self.__get_create_room_message())
+                                elif text_message['url'] == 'pvp/room/user/enter' and self.__uid != text_message['user']['pvp']['uid']:
+                                    opponent_uid = text_message['user']['pvp']['uid']
+                                    logger.info('An opponent entered the room ...')
+                                elif text_message['url'] == 'pvp/room/user/exit' and opponent_uid == text_message['user']['pvp']['uid']:
+                                    logger.info('The opponent exited the room ...')
+                                    # await ws.send_str(self.__get_edit_room_message())
+                                    await ws.send_str(self.__get_exit_room_message())
+                                elif text_message['url'] == 'pvp/room/ready' and opponent_uid == text_message['uid'] and text_message['ready']:
+                                    logger.info('The opponent got ready ...')
+                                    await ws.send_str(self.__get_start_battle_message())
+                                elif text_message['url'] == 'pvp/room/update' and self.__uid in text_message['room']['userIdList']:
+                                    # logger.info(text_message['room']['userIdList'])
+                                    logger.info('The room status has been updated ...')
+                                    if text_message['room']['expired']:
+                                        logger.info('The room has expired ...')
+                                    if text_message['room']['gaming']:
+                                        is_gaming = True
+                                        await ws.send_str(self.__get_battle_board_message())
+                                    else:
+                                        if opponent_uid == text_message['room']['users'][0]['pvp']['uid']:
+                                            if text_message['room']['coin'] == 0 and len(text_message['room']['password']) == 0 and text_message['room']['minesweeperAutoOpen'] and not text_message['room']['minesweeperFlagForbidden'] and text_message['room']['round'] == 1 and text_message['room']['maxNumber'] == 2: 
+                                                await ws.send_str(self.__get_ready_status_message())
+                                            else:
+                                                await ws.send_str(self.__get_room_edit_warning_message())
+                                elif text_message['url'] == 'pvp/room/exit':
+                                    # keep alive
+                                    logger.info('The bot left the room ...')
+                                    logger.info('Re-creating the room ...')
+                                    await ws.send_str(self.__get_create_room_message())
 
-                            elif text_message['uid'] == opponent_uid:
-                                logging.info('opponent solved BV: %d' % (text_message['bv']))
-                                if text_message['bv'] == board_result['bv'] and self.__game_going:
-                                    self.__game_going = False
-                                    logging.info('The battle is ended, opponent win ...')
+                            else:
+                                if text_message['url'] == 'pvp/minesweeper/info':
+                                    board = get_board(text_message['cells'][0].split('-')[0: -1])
+                                    board_result = get_board_result(board)
+                                    current_game_bv = board_result['bv']
+                                    await ws.send_str(self.__get_battle_progress_message(1))
+                                    logger.info('The battle is ready to start, wait for 6 seconds ...')
+                                    time.sleep(6) # first preparation cold time
+                                    current_game_started_time = time.time()
+                                    logger.info('The battle is started ...')
+                                elif text_message['url'] == 'pvp/minesweeper/progress':
+                                    if text_message['uid'] == self.__uid:
+                                        if text_message['bv'] == current_game_bv:
+                                            current_game_finished_time = time.time()
+                                            await ws.send_str(self.__get_bot_success_message(current_game_bv, current_game_finished_time - current_game_started_time))
+                                        else:
+                                            await ws.send_str(self.__get_battle_progress_message(text_message['bv'] + 1))
+                                            time.sleep(1 / self.__bvs) # cold time by bvs
+                                    elif text_message['uid'] == opponent_uid:
+                                        logger.info('The opponent is solving %d bv ...' % (text_message['bv']))
+                                    else:
+                                        logger.debug('This is another game out of the room ...')
+                                elif text_message['url'] == 'pvp/minesweeper/win':
+                                    is_gaming = False
+                                    winner_uid = text_message['users'][0]['pvp']['uid']
+                                    if winner_uid == self.__uid:
+                                        logger.info('The bot won the battle ...')
+                                    elif winner_uid == opponent_uid:
+                                        logger.info('The opponent won the battle ...')
 
-                        if 'url' in text_message and text_message['url'] == 'pvp/room/start' and not self.__game_going:
-                            await ws.send_str(self.__format_message(self.__room_info))
-
-                        if 'url' in text_message and text_message['url'] == 'pvp/room/update':
-                            if self.__uid in text_message['room']['userIdList']:
-                                logging.info('The room status has been updated ...')
-                                if text_message['room']['coin'] == 0 and len(text_message['room']['password']) == 0 and text_message['room']['minesweeperAutoOpen'] and not text_message['room']['minesweeperFlagForbidden'] and text_message['room']['round'] == 1 and text_message['room']['maxNumber'] == 2: 
-                                    if self.__game_going:
-                                        self.__game_going = False
-                                    await ws.send_str(self.__format_message(self.__get_ready))
-                                else:
-                                    logging.warning('A room was created conflicting rules ...')
-                                    await ws.send_str(self.__format_message(self.__room_edit_warning_message))
-
-                        if 'url' in text_message and text_message['url'] == 'pvp/room/exit':
-                            # keep alive
-                            logging.info('The bot left the room ...')
-                            logging.info('Re-creating the room ...')
-                            await ws.send_str(self.__format_message(self.__create_room))
-
-                        if 'url' in text_message and text_message['url'] == 'pvp/room/user/exit':
-                            # keep alive
-                            logging.info('The opponent left the room ...')
-                            logging.info('Resuming the room to default configurations ...')
-                            self.__bvs = 2
-                            await ws.send_str(self.__format_message(self.__exit_room))
+                        else:
+                            logger.warning('Something weird is happening, HTTP code: %d.' % text_message['code'])
 
                     elif msg.type == aiohttp.WSMsgType.ERROR:
-                        logging.error(msg.data)
+                        logger.error(str(msg.data))
                         break
