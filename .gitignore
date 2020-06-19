@@ -130,4 +130,5 @@ dmypy.json
 
 # configuration
 account_config.py
+ban.py
 autopvp.log
