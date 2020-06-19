@@ -11,6 +11,7 @@ try:
 	while True:
 		logger.info('Bot running count: %d' % (bot_restart_counter))
 		asyncio.run(app.run())
+		bot_restart_counter += 1
 except KeyboardInterrupt as e:
 	logger.info('Bot stopped now ...')
 except Exception as e:
