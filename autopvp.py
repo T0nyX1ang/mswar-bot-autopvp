@@ -6,6 +6,7 @@ import json
 import time
 import aiohttp
 import hashlib
+import traceback
 
 class AutoPVPApp(object):
     def __init__(self, config, bvs=2.0):
@@ -36,7 +37,9 @@ class AutoPVPApp(object):
         }
         return headers
 
-    def __default_room_config(self):
+    def __default_room_config(self, generate_id=False):
+        if generate_id:
+            self.__room_id = os.urandom(2).hex()
         default = {
             'anonymous': False,
             'autoOpen': True,
@@ -48,7 +51,7 @@ class AutoPVPApp(object):
             'limitRank': 0,
             'maxNumber': 2,
             'round': 1,
-            'title': '自动对战测试(%s)' % os.urandom(4).hex(),
+            'title': '自动对战测试(%s)' % self.__room_id,
             'password': '',
         }
         return default
@@ -65,21 +68,21 @@ class AutoPVPApp(object):
 
     def __get_create_room_message(self) -> str:
         logger.info('The bot is creating a single battle room ... ')
-        create_room = self.__default_room_config()
+        create_room = self.__default_room_config(generate_id=True)
         create_room['url'] = 'room/minesweeper/create'
         return self.__format_message(create_room)
 
-    def __get_edit_room_message(self, row: int=8, column: int=8, mines: int=10, bvs: float=2.0) -> str:
-        logger.info('The bot is changing the room configurations ...')
-        self.__bvs = bvs
-        edit_room = self.__default_room_config()
-        edit_room.pop('anonymous')
-        edit_room.pop('limitRank')
-        edit_room['column'] = column
-        edit_room['row'] = row
-        edit_room['mines'] = mines
-        edit_room['url'] = 'room/minesweeper/edit'
-        return self.__format_message(edit_room)
+    # def __get_edit_room_message(self, row: int=8, column: int=8, mines: int=10, bvs: float=2.0) -> str:
+    #     logger.info('The bot is changing the room configurations ...')
+    #     self.__bvs = bvs
+    #     edit_room = self.__default_room_config(generate_id=False)
+    #     edit_room.pop('anonymous')
+    #     edit_room.pop('limitRank')
+    #     edit_room['column'] = column
+    #     edit_room['row'] = row
+    #     edit_room['mine'] = mines
+    #     edit_room['url'] = 'room/minesweeper/edit'
+    #     return self.__format_message(edit_room)
 
     def __get_ready_status_message(self, ready: bool=True) -> str:
         if ready:
@@ -120,6 +123,29 @@ class AutoPVPApp(object):
         logger.info('The bot is exiting the battle room ...')
         exit_room = {'url': 'room/exit'}
         return self.__format_message(exit_room)
+
+    def __user_message_parser(self, stripped_arg) -> tuple:
+        logger.info('The bot is parsing user-input configurations ...')
+        if stripped_arg:
+            stripped_arg_new = stripped_arg.replace('  ', ' ')
+            while stripped_arg != stripped_arg_new:
+                stripped_arg = stripped_arg_new
+                stripped_arg_new = stripped_arg_new.replace('  ', ' ')    
+            split_arg = stripped_arg.split(' ')
+            argc = len(split_arg)
+            try:
+                if split_arg[0] == 'bvs' and argc >= 2:
+                    bvs = float(split_arg[1])
+                    if bvs > 10.0 or bvs < 0.5:
+                        logger.warning('Bound exceeded, will not change bvs ...')
+                    else:
+                        logger.info('Changing bvs to %.3f ...' % bvs)
+                        self.__bvs = bvs
+                if argc >= 3:
+                    logger.warning('Several arguments have not been parsed.')
+            except Exception as e:
+                logger.warning('Incorrect input: (%s)' % stripped_arg)
+                logger.debug(traceback.format_exc())
 
     async def run(self):
         async with aiohttp.ClientSession() as session:
@@ -168,9 +194,13 @@ class AutoPVPApp(object):
                                                 await ws.send_str(self.__get_room_edit_warning_message())
                                 elif text_message['url'] == 'pvp/room/exit':
                                     # keep alive
+                                    self.__bvs = 2.0
                                     logger.info('The bot left the room ...')
                                     logger.info('Re-creating the room ...')
                                     await ws.send_str(self.__get_create_room_message())
+                                elif text_message['url'] == 'pvp/room/message' and opponent_uid == text_message['msg']['user']['uid']:
+                                    message = text_message['msg']['message'].strip()
+                                    parsed_msg = self.__user_message_parser(message)
 
                             else:
                                 if text_message['url'] == 'pvp/minesweeper/info':
@@ -203,8 +233,11 @@ class AutoPVPApp(object):
                                         logger.info('The opponent won the battle ...')
 
                         else:
-                            logger.warning('Something weird is happening, HTTP code: %d.' % text_message['code'])
+                            logger.warning('Something weird is happening, HTTP code: %d' % text_message['code'])
+                            break
 
                     elif msg.type == aiohttp.WSMsgType.ERROR:
-                        logger.error(str(msg.data))
                         break
+
+        logger.info('Restarting the bot in 5 seconds ...')
+        time.sleep(5)
