@@ -1,6 +1,7 @@
 from base64 import b64encode
 from board import get_board, get_board_result
 from log import logger
+from ban import ban_list
 import os
 import json
 import time
@@ -119,6 +120,11 @@ class AutoPVPApp(object):
         room_edit_warning = {'url': 'room/message', 'msg': '机器人仅支持“双人，非匿名，无雷币，回合数为1，无加密，自动开局，不强制NF，不限制排名”的房间，请重新设置房间，否则机器人不会准备游戏。'}
         return self.__format_message(room_edit_warning)
 
+    def __get_room_kick_out_message(self, uid) -> str:
+        logger.info('The bot is kicking out a banned user ...')
+        room_kick_out = {'uid': uid, 'url': 'room/kick'}
+        return self.__format_message(room_kick_out)
+
     def __get_exit_room_message(self) -> str:
         logger.info('The bot is exiting the battle room ...')
         exit_room = {'url': 'room/exit'}
@@ -171,10 +177,16 @@ class AutoPVPApp(object):
                                 elif text_message['url'] == 'pvp/room/user/enter' and self.__uid != text_message['user']['pvp']['uid']:
                                     opponent_uid = text_message['user']['pvp']['uid']
                                     logger.info('An opponent entered the room ...')
+                                    if opponent_uid in ban_list:
+                                        logger.info('The opponent is in the ban list ...')
+                                        await ws.send_str(self.__get_room_kick_out_message(uid=opponent_uid))
                                 elif text_message['url'] == 'pvp/room/user/exit' and opponent_uid == text_message['user']['pvp']['uid']:
-                                    logger.info('The opponent exited the room ...')
-                                    # await ws.send_str(self.__get_edit_room_message())
-                                    await ws.send_str(self.__get_exit_room_message())
+                                    if opponent_uid in ban_list:
+                                        logger.info('The opponent is kicked out of the room ...')
+                                    else:
+                                        logger.info('The opponent exited the room ...')
+                                        # await ws.send_str(self.__get_edit_room_message())
+                                        await ws.send_str(self.__get_exit_room_message())
                                 elif text_message['url'] == 'pvp/room/ready' and opponent_uid == text_message['uid'] and text_message['ready']:
                                     logger.info('The opponent got ready ...')
                                     await ws.send_str(self.__get_start_battle_message())
