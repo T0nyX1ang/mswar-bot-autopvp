@@ -4,15 +4,15 @@ import account_config
 import asyncio
 import traceback
 
-app = AutoPVPApp(config=account_config, bvs=2.0)
+app = AutoPVPApp(config=account_config, level=2.0)
 bot_restart_counter = 1
 
 try:
-	while True:
-		logger.info('Bot running count: %d' % (bot_restart_counter))
-		asyncio.run(app.run())
-		bot_restart_counter += 1
+    while True:
+        logger.info('Bot running count: %d' % (bot_restart_counter))
+        asyncio.run(app.run())
+        bot_restart_counter += 1
 except KeyboardInterrupt as e:
-	logger.info('Bot stopped now ...')
+    logger.info('Bot stopped now ...')
 except Exception as e:
-	logger.critical(traceback.format_exc())
+    logger.critical(traceback.format_exc())
