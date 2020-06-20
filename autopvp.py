@@ -10,12 +10,14 @@ import hashlib
 import traceback
 
 class AutoPVPApp(object):
-    def __init__(self, config, bvs=2.0):
+    def __init__(self, config, level=2.0):
         self.__uid = config.uid
         self.__token = config.token
         self.__host = '119.29.91.152:8080'
         self.__url = 'http://' + self.__host + '/MineSweepingWar/socket/pvp/' + self.__uid
-        self.__bvs = bvs
+        self.__level = level
+        self.__INC_FACTOR = 0.32
+        self.__DEC_FACTOR = 0.08
 
     def __generate_headers(self):
         timestamp = str(int(time.time() * 1000))
@@ -45,9 +47,9 @@ class AutoPVPApp(object):
             'anonymous': False,
             'autoOpen': True,
             'coin': 0,
-            'column': 8,
-            'row': 8,
-            'mine': 10,
+            'column': 16,
+            'row': 16,
+            'mine': 40,
             'flagForbidden': False,
             'limitRank': 0,
             'maxNumber': 2,
@@ -130,6 +132,11 @@ class AutoPVPApp(object):
         exit_room = {'url': 'room/exit'}
         return self.__format_message(exit_room)
 
+    def __get_level_status_message(self) -> str:
+        logger.info('The bot is getting level status ...')
+        level_status = {'url': 'room/message', 'msg': '当前等级: LV %.3f' % self.__level}
+        return self.__format_message(level_status)
+
     def __user_message_parser(self, stripped_arg) -> tuple:
         logger.info('The bot is parsing user-input configurations ...')
         if stripped_arg:
@@ -140,18 +147,59 @@ class AutoPVPApp(object):
             split_arg = stripped_arg.split(' ')
             argc = len(split_arg)
             try:
-                if split_arg[0] == 'bvs' and argc >= 2:
-                    bvs = float(split_arg[1])
-                    if bvs > 10.0 or bvs < 0.5:
-                        logger.warning('Bound exceeded, will not change bvs ...')
+                if split_arg[0] == 'level' and argc >= 2:
+                    if split_arg[1] == 'up':
+                        self.__level = int(self.__level) + 1.0 if self.__level <= 9.0 else 10.0
+                        logger.info('Leveling up to %.3f...' % self.__level)
+                    elif split_arg[1] == 'down':
+                        self.__level = int(self.__level) - 1.0 if self.__level >= 2.0 else 1.0
+                        logger.info('Leveling down to %.3f...' % self.__level)
+                    elif split_arg[1] == 'status':
+                        logger.info('Level status: %.3f...' % self.__level)
                     else:
-                        logger.info('Changing bvs to %.3f ...' % bvs)
-                        self.__bvs = bvs
+                        level = float(split_arg[1])
+                        if level > 10.0 or level < 1.0:
+                            logger.warning('Bound exceeded, will not change level ...')
+                        else:
+                            logger.info('Changing level to %.3f ...' % level)
+                            self.__level = level
+                elif split_arg[0] == 'level' and argc == 1:
+                    logger.info('Level status: %.3f...' % self.__level)
+                else:
+                    return False
                 if argc >= 3:
                     logger.warning('Several arguments have not been parsed.')
+                return True
             except Exception as e:
                 logger.warning('Incorrect input: (%s)' % stripped_arg)
                 logger.debug(traceback.format_exc())
+                return False
+        return False
+
+    def __get_est_bvs(self, level, difficulty, bv):
+        score = level * 10
+        qg_ref = {
+            'exph': 435.001 / 1.000 / score,
+            'expv': 435.001 / 1.000 / score,
+            'int': 153.730 / 1.020 / score,
+            'beg': 47.299 / 1.765 / score,
+        }
+        qg = qg_ref[difficulty]
+        est_time = (qg * bv) ** (1 / 1.7)
+        est_bvs = bv / est_time
+        return est_bvs
+
+    def __get_est_level(self, difficulty, bv, est_time):
+        qg = est_time ** 1.7 / bv
+        score_ref = {
+            'exph': 435.001 / 1.000 / qg,
+            'expv': 435.001 / 1.000 / qg,
+            'int': 153.730 / 1.020 / qg,
+            'beg': 47.299 / 1.765 / qg,        
+        }
+        score = score_ref[difficulty]
+        est_level = score / 10
+        return est_level
 
     async def run(self):
         async with aiohttp.ClientSession() as session:
@@ -171,6 +219,9 @@ class AutoPVPApp(object):
                                 current_game_started_time = 0
                                 current_game_finished_time = 0
                                 current_game_bv = 0
+                                current_game_bvs = 0
+                                current_game_opponent_solved_bv = 0
+                                current_game_difficulty = ''
 
                                 if text_message['url'] == 'pvp/enter':
                                     await ws.send_str(self.__get_create_room_message())
@@ -206,19 +257,26 @@ class AutoPVPApp(object):
                                                 await ws.send_str(self.__get_room_edit_warning_message())
                                 elif text_message['url'] == 'pvp/room/exit':
                                     # keep alive
-                                    self.__bvs = 2.0
+                                    self.__level = 2.0
+                                    self.__INC_FACTOR = 0.32
+                                    self.__DEC_FACTOR = 0.08
                                     logger.info('The bot left the room ...')
                                     logger.info('Re-creating the room ...')
                                     await ws.send_str(self.__get_create_room_message())
                                 elif text_message['url'] == 'pvp/room/message' and opponent_uid == text_message['msg']['user']['uid']:
                                     message = text_message['msg']['message'].strip()
-                                    parsed_msg = self.__user_message_parser(message)
+                                    is_parsed = self.__user_message_parser(message)
+                                    if is_parsed:
+                                        await ws.send_str(self.__get_level_status_message())
 
                             else:
                                 if text_message['url'] == 'pvp/minesweeper/info':
+                                    tmp_level = self.__level
                                     board = get_board(text_message['cells'][0].split('-')[0: -1])
                                     board_result = get_board_result(board)
                                     current_game_bv = board_result['bv']
+                                    current_game_difficulty = board_result['difficulty']
+                                    current_game_bvs = self.__get_est_bvs(tmp_level, current_game_difficulty, current_game_bv)
                                     await ws.send_str(self.__get_battle_progress_message(1))
                                     logger.info('The battle is ready to start, wait for 6 seconds ...')
                                     time.sleep(6) # first preparation cold time
@@ -231,9 +289,10 @@ class AutoPVPApp(object):
                                             await ws.send_str(self.__get_bot_success_message(current_game_bv, current_game_finished_time - current_game_started_time))
                                         else:
                                             await ws.send_str(self.__get_battle_progress_message(text_message['bv'] + 1))
-                                            time.sleep(1 / self.__bvs) # cold time by bvs
+                                            time.sleep(1 / current_game_bvs) # cold time by bvs
                                     elif text_message['uid'] == opponent_uid:
-                                        logger.info('The opponent is solving %d bv ...' % (text_message['bv']))
+                                        current_game_opponent_solved_bv = text_message['bv']
+                                        logger.info('The opponent is solving %d bv ...' % (current_game_opponent_solved_bv))
                                     else:
                                         logger.debug('This is another game out of the room ...')
                                 elif text_message['url'] == 'pvp/minesweeper/win':
@@ -241,8 +300,26 @@ class AutoPVPApp(object):
                                     winner_uid = text_message['users'][0]['pvp']['uid']
                                     if winner_uid == self.__uid:
                                         logger.info('The bot won the battle ...')
+                                        est_level = self.__get_est_level(current_game_difficulty, current_game_bv, (current_game_finished_time - current_game_started_time) * current_game_bv / current_game_opponent_solved_bv)
+                                        prev_level = self.__level
+                                        self.__level = self.__level - (self.__level - est_level) * self.__DEC_FACTOR
+                                        if self.__level < 1.0:
+                                            self.__level = 1.0
+                                        logger.info('Leveling down a bit [%.3f -> %.3f] ...' % (prev_level, self.__level))
+                                        self.__DEC_FACTOR = self.__DEC_FACTOR / 1.414 if self.__DEC_FACTOR > 0.030 else 0.02
+                                        logger.info('The decreasing factor is set to: %.3f' % (self.__DEC_FACTOR))
+
                                     elif winner_uid == opponent_uid:
                                         logger.info('The opponent won the battle ...')
+                                        current_game_finished_time = time.time()
+                                        est_level = self.__get_est_level(current_game_difficulty, current_game_bv, current_game_finished_time - current_game_started_time)
+                                        prev_level = self.__level
+                                        self.__level = self.__level + (est_level - self.__level) * self.__INC_FACTOR
+                                        if self.__level > 10.0:
+                                            self.__level = 10.0
+                                        logger.info('Leveling up a bit [%.3f -> %.3f] ...' % (prev_level, self.__level))
+                                        self.__INC_FACTOR = self.__INC_FACTOR / 1.414 if self.__INC_FACTOR > 0.115 else 0.08
+                                        logger.info('The increasing factor is set to: %.3f' % (self.__INC_FACTOR))
 
                         else:
                             logger.warning('Something weird is happening, HTTP code: %d' % text_message['code'])
