@@ -105,15 +105,27 @@ def get_action(action_detail):
             current += 1
     return split_action
 
+def get_difficulty(row, column, mines):
+    size = (row, column, mines)
+    if size == (8, 8, 10):
+        return 'beg'
+    elif size == (16, 16, 40):
+        return 'int'
+    elif size == (16, 30, 99):
+        return 'exph'
+    elif size == (30, 16, 99):
+        return 'expv'
+    else:
+        return '%dx%d + %d' % size
+
 def get_board_result(board):
     result = {}
     result['row'] = get_row(board)
     result['column'] = get_column(board)
-
     marker = [[False for col in range(0, get_column(board))] for row in range(0, get_row(board))]
     result['mines'] = get_mines(board, marker)
+    result['difficulty'] = get_difficulty(result['row'], result['column'], result['mines'])
     result['op'] = get_openings(board, marker)
     result['bv'] = result['op'] + get_isolated_bv(board, marker)
     result['is'] = get_islands(board, marker)
-    return result    
-
+    return result
