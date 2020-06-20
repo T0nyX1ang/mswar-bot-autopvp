@@ -220,7 +220,7 @@ class AutoPVPApp(object):
                                 current_game_finished_time = 0
                                 current_game_bv = 0
                                 current_game_bvs = 0
-                                current_game_opponent_solved_bv = 0
+                                current_game_opponent_solved_bv = 1 # This should avoid bugs in calcuation
                                 current_game_difficulty = ''
 
                                 if text_message['url'] == 'pvp/enter':
