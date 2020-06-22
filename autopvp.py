@@ -12,6 +12,7 @@ import traceback
 
 class AutoPVPApp(object):
     def __init__(self, config, level=2.0):
+        logger.info('Initializing bot, loading account and establishing websocket connection ...')
         self.__uid = config.uid
         self.__token = config.token
         self.__host = '119.29.91.152:8080'
@@ -55,7 +56,7 @@ class AutoPVPApp(object):
             'limitRank': 0,
             'maxNumber': 2,
             'round': 1,
-            'title': '自动对战测试(%s)' % self.__room_id,
+            'title': '自动对战测试(勿进)(%s)' % self.__room_id,
             'password': '',
         }
         return default
@@ -238,7 +239,7 @@ class AutoPVPApp(object):
                                     else:
                                         logger.info('The opponent exited the room ...')
                                         # await ws.send_str(self.__get_edit_room_message())
-                                        await ws.send_str(self.__get_exit_room_message())
+                                        # await ws.send_str(self.__get_exit_room_message())
                                 elif text_message['url'] == 'pvp/room/ready' and opponent_uid == text_message['uid'] and text_message['ready']:
                                     logger.info('The opponent got ready ...')
                                     await ws.send_str(self.__get_start_battle_message())
@@ -256,11 +257,14 @@ class AutoPVPApp(object):
                                                 await ws.send_str(self.__get_ready_status_message())
                                             else:
                                                 await ws.send_str(self.__get_room_edit_warning_message())
+                                        if len(opponent_uid) != 0 and (len(text_message['room']['userIdList']) != 2 or opponent_uid not in text_message['room']['userIdList']):
+                                            await ws.send_str(self.__get_exit_room_message())
                                 elif text_message['url'] == 'pvp/room/exit':
                                     # keep alive
                                     self.__level = 2.0
                                     self.__INC_FACTOR = 0.24
                                     self.__DEC_FACTOR = 0.08
+                                    opponent_uid = ''
                                     logger.info('The bot left the room ...')
                                     logger.info('Re-creating the room ...')
                                     await ws.send_str(self.__get_create_room_message())
@@ -333,5 +337,5 @@ class AutoPVPApp(object):
                     elif msg.type == aiohttp.WSMsgType.ERROR:
                         break
 
-        logger.info('Restarting the bot in 5 seconds ...')
-        time.sleep(5)
+        logger.info('Restarting the bot in 3 seconds ...')
+        time.sleep(3)
