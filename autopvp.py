@@ -18,6 +18,9 @@ class AutoPVPApp(object):
         self.__host = '119.29.91.152:8080'
         self.__url = 'http://' + self.__host + '/MineSweepingWar/socket/pvp/' + self.__uid
         self.__level = level
+        self.__level_hold_on = False
+        self.__MAX_LEVEL = 11.5
+        self.__MIN_LEVEL = 0.5
         self.__INC_FACTOR = 0.24
         self.__DEC_FACTOR = 0.08
 
@@ -56,7 +59,7 @@ class AutoPVPApp(object):
             'limitRank': 0,
             'maxNumber': 2,
             'round': 1,
-            'title': '自动对战测试(勿进)(%s)' % self.__room_id,
+            'title': '自动对战测试(%s)' % self.__room_id,
             'password': '',
         }
         return default
@@ -149,23 +152,30 @@ class AutoPVPApp(object):
             split_arg = stripped_arg.split(' ')
             argc = len(split_arg)
             try:
-                if split_arg[0] == 'level' and argc >= 2:
-                    if split_arg[1] == 'up':
-                        self.__level = int(self.__level) + 1.0 if self.__level <= 9.0 else 10.0
+                if split_arg[0] in ['level', 'lv', 'lvl'] and argc >= 2:
+                    if split_arg[1] in ['up', 'u']:
+                        self.__level = self.__level + 0.5 if self.__level <= self.__MAX_LEVEL - 0.5 else self.__MAX_LEVEL
                         logger.info('Leveling up to %.3f...' % self.__level)
-                    elif split_arg[1] == 'down':
-                        self.__level = int(self.__level) - 1.0 if self.__level >= 2.0 else 1.0
+                    elif split_arg[1] in ['down', 'd']:
+                        self.__level = self.__level - 0.5 if self.__level >= self.__MIN_LEVEL + 0.5 else self.__MIN_LEVEL
                         logger.info('Leveling down to %.3f...' % self.__level)
-                    elif split_arg[1] == 'status':
+                    elif split_arg[1] in ['status', 's']:
                         logger.info('Level status: %.3f...' % self.__level)
+                    elif split_arg[1] in ['holdon', 'n']:
+                        logger.info('Level will not change automatically ...')
+                        self.__level_hold_on = True
+                    elif split_arg[1] in ['holdoff', 'f']:
+                        logger.info('Level will change automatically ...')
+                        self.__level_hold_on = False
                     else:
                         level = float(split_arg[1])
-                        if level > 10.0 or level < 1.0:
+                        if level > self.__MAX_LEVEL or level < self.__MIN_LEVEL:
                             logger.warning('Bound exceeded, will not change level ...')
+                            return False
                         else:
                             logger.info('Changing level to %.3f ...' % level)
                             self.__level = level
-                elif split_arg[0] == 'level' and argc == 1:
+                elif split_arg[0] in ['level', 'lv', 'lvl'] and argc == 1:
                     logger.info('Level status: %.3f...' % self.__level)
                 else:
                     return False
@@ -259,6 +269,7 @@ class AutoPVPApp(object):
                                             await ws.send_str(self.__get_exit_room_message())
                                 elif text_message['url'] == 'pvp/room/exit':
                                     # keep alive
+                                    self.__level_hold_on = False
                                     self.__level = 2.0
                                     self.__INC_FACTOR = 0.24
                                     self.__DEC_FACTOR = 0.08
@@ -303,30 +314,33 @@ class AutoPVPApp(object):
                                     winner_uid = text_message['users'][0]['pvp']['uid']
                                     if winner_uid == self.__uid:
                                         logger.info('The bot won the battle ...')
-                                        est_level = self.__get_est_level(current_game_difficulty, current_game_finished_time - current_game_started_time, current_game_opponent_solved_bv, current_game_bv)
-                                        prev_level = self.__level
-                                        self.__level = self.__level - (self.__level - est_level) * self.__DEC_FACTOR
-                                        if self.__level < 1.0:
-                                            self.__level = 1.0
-                                        logger.info('Leveling down a bit [%.3f -> %.3f] ...' % (prev_level, self.__level))
-                                        self.__INC_FACTOR = self.__INC_FACTOR / 2.0 if self.__INC_FACTOR > 0.07 else 0.06
-                                        self.__DEC_FACTOR = self.__DEC_FACTOR * 2.0 if self.__DEC_FACTOR < 0.31 else 0.32
-                                        logger.info('The increasing factor is set to: %.3f' % (self.__INC_FACTOR))
-                                        logger.info('The decreasing factor is set to: %.3f' % (self.__DEC_FACTOR))
+                                        if not self.__level_hold_on:
+                                            est_level = self.__get_est_level(current_game_difficulty, current_game_finished_time - current_game_started_time, current_game_opponent_solved_bv, current_game_bv)
+                                            prev_level = self.__level
+                                            self.__level = self.__level - (self.__level - est_level) * self.__DEC_FACTOR
+                                            if self.__level < self.__MIN_LEVEL:
+                                                self.__level = self.__MIN_LEVEL
+                                            logger.info('Level changes a bit [%.3f -> %.3f] ...' % (prev_level, self.__level))
+                                            self.__INC_FACTOR = self.__INC_FACTOR / 2.0 if self.__INC_FACTOR > 0.07 else 0.06
+                                            self.__DEC_FACTOR = self.__DEC_FACTOR * 2.0 if self.__DEC_FACTOR < 0.31 else 0.32
+                                            logger.info('The increasing factor is set to: %.3f' % (self.__INC_FACTOR))
+                                            logger.info('The decreasing factor is set to: %.3f' % (self.__DEC_FACTOR))
 
                                     elif winner_uid == opponent_uid:
                                         logger.info('The opponent won the battle ...')
-                                        current_game_finished_time = time.time()
-                                        est_level = self.__get_est_level(current_game_difficulty, current_game_finished_time - current_game_started_time, current_game_opponent_solved_bv, current_game_bv)
-                                        prev_level = self.__level
-                                        self.__level = self.__level + (est_level - self.__level) * self.__INC_FACTOR
-                                        if self.__level > 10.0:
-                                            self.__level = 10.0
-                                        logger.info('Leveling up a bit [%.3f -> %.3f] ...' % (prev_level, self.__level))
-                                        self.__INC_FACTOR = self.__INC_FACTOR * 2.0 if self.__INC_FACTOR < 0.47 else 0.48
-                                        self.__DEC_FACTOR = self.__DEC_FACTOR / 2.0 if self.__DEC_FACTOR > 0.05 else 0.04
-                                        logger.info('The increasing factor is set to: %.3f' % (self.__INC_FACTOR))
-                                        logger.info('The decreasing factor is set to: %.3f' % (self.__DEC_FACTOR))
+                                        if not self.__level_hold_on:
+                                            current_game_finished_time = time.time()
+                                            est_level = self.__get_est_level(current_game_difficulty, current_game_finished_time - current_game_started_time, current_game_opponent_solved_bv, current_game_bv)
+                                            prev_level = self.__level
+                                            self.__level = self.__level + (est_level - self.__level) * self.__INC_FACTOR
+                                            if self.__level > self.__MAX_LEVEL:
+                                                self.__level = self.__MAX_LEVEL
+                                            logger.info('Level changes a bit [%.3f -> %.3f] ...' % (prev_level, self.__level))
+                                            self.__INC_FACTOR = self.__INC_FACTOR * 2.0 if self.__INC_FACTOR < 0.47 else 0.48
+                                            self.__DEC_FACTOR = self.__DEC_FACTOR / 2.0 if self.__DEC_FACTOR > 0.05 else 0.04
+                                            logger.info('The increasing factor is set to: %.3f' % (self.__INC_FACTOR))
+                                            logger.info('The decreasing factor is set to: %.3f' % (self.__DEC_FACTOR))
+
                                 elif text_message['url'] == 'pvp/room/user/exit' and opponent_uid == text_message['user']['pvp']['uid']:
                                     logger.info('The opponent ran away ...')
 
