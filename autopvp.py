@@ -16,7 +16,7 @@ class AutoPVPApp(object):
         self.__host = '119.29.91.152:8080'
         self.__url = 'http://' + self.__host + '/MineSweepingWar/socket/pvp/' + self.__uid
         self.__level = level
-        self.__INC_FACTOR = 0.32
+        self.__INC_FACTOR = 0.24
         self.__DEC_FACTOR = 0.08
 
     def __generate_headers(self):
@@ -258,7 +258,7 @@ class AutoPVPApp(object):
                                 elif text_message['url'] == 'pvp/room/exit':
                                     # keep alive
                                     self.__level = 2.0
-                                    self.__INC_FACTOR = 0.32
+                                    self.__INC_FACTOR = 0.24
                                     self.__DEC_FACTOR = 0.08
                                     logger.info('The bot left the room ...')
                                     logger.info('Re-creating the room ...')
@@ -306,7 +306,9 @@ class AutoPVPApp(object):
                                         if self.__level < 1.0:
                                             self.__level = 1.0
                                         logger.info('Leveling down a bit [%.3f -> %.3f] ...' % (prev_level, self.__level))
-                                        self.__DEC_FACTOR = self.__DEC_FACTOR / 1.414 if self.__DEC_FACTOR > 0.030 else 0.02
+                                        self.__INC_FACTOR = self.__INC_FACTOR / 2.0 if self.__INC_FACTOR > 0.07 else 0.06
+                                        self.__DEC_FACTOR = self.__DEC_FACTOR * 2.0 if self.__DEC_FACTOR < 0.31 else 0.32
+                                        logger.info('The increasing factor is set to: %.3f' % (self.__INC_FACTOR))
                                         logger.info('The decreasing factor is set to: %.3f' % (self.__DEC_FACTOR))
 
                                     elif winner_uid == opponent_uid:
@@ -318,8 +320,10 @@ class AutoPVPApp(object):
                                         if self.__level > 10.0:
                                             self.__level = 10.0
                                         logger.info('Leveling up a bit [%.3f -> %.3f] ...' % (prev_level, self.__level))
-                                        self.__INC_FACTOR = self.__INC_FACTOR / 1.414 if self.__INC_FACTOR > 0.115 else 0.08
+                                        self.__INC_FACTOR = self.__INC_FACTOR * 2.0 if self.__INC_FACTOR < 0.47 else 0.48
+                                        self.__DEC_FACTOR = self.__DEC_FACTOR / 2.0 if self.__DEC_FACTOR > 0.05 else 0.04
                                         logger.info('The increasing factor is set to: %.3f' % (self.__INC_FACTOR))
+                                        logger.info('The decreasing factor is set to: %.3f' % (self.__DEC_FACTOR))
 
                         else:
                             logger.warning('Something weird is happening, HTTP code: %d' % text_message['code'])
