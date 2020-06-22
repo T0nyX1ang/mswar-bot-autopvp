@@ -265,7 +265,7 @@ class AutoPVPApp(object):
                                                 await ws.send_str(self.__get_ready_status_message())
                                             else:
                                                 await ws.send_str(self.__get_room_edit_warning_message())
-                                        if len(opponent_uid) != 0 and (len(text_message['room']['userIdList']) != 2 or opponent_uid not in text_message['room']['userIdList']):
+                                        if len(opponent_uid) != 0 and (len(text_message['room']['userIdList']) != 2 or opponent_uid not in text_message['room']['userIdList']) and opponent_uid not in ban_list:
                                             await ws.send_str(self.__get_exit_room_message())
                                 elif text_message['url'] == 'pvp/room/exit':
                                     # keep alive
