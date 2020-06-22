@@ -3,6 +3,7 @@ from board import get_board, get_board_result
 from log import logger
 from ban import ban_list
 import os
+import math
 import json
 import time
 import aiohttp
@@ -189,13 +190,13 @@ class AutoPVPApp(object):
         est_bvs = bv / est_time
         return est_bvs
 
-    def __get_est_level(self, difficulty, bv, est_time):
-        qg = est_time ** 1.7 / bv
+    def __get_est_level(self, difficulty, time, solved_bv, bv):
+        qg_est = time ** 1.7 / solved_bv * math.sqrt(solved_bv / bv)
         score_ref = {
-            'exph': 435.001 / 1.000 / qg,
-            'expv': 435.001 / 1.000 / qg,
-            'int': 153.730 / 1.020 / qg,
-            'beg': 47.299 / 1.765 / qg,        
+            'exph': 435.001 / 1.000 / qg_est,
+            'expv': 435.001 / 1.000 / qg_est,
+            'int': 153.730 / 1.020 / qg_est,
+            'beg': 47.299 / 1.765 / qg_est,        
         }
         score = score_ref[difficulty]
         est_level = score / 10
@@ -300,7 +301,7 @@ class AutoPVPApp(object):
                                     winner_uid = text_message['users'][0]['pvp']['uid']
                                     if winner_uid == self.__uid:
                                         logger.info('The bot won the battle ...')
-                                        est_level = self.__get_est_level(current_game_difficulty, current_game_bv, (current_game_finished_time - current_game_started_time) * current_game_bv / current_game_opponent_solved_bv)
+                                        est_level = self.__get_est_level(current_game_difficulty, current_game_finished_time - current_game_started_time, current_game_opponent_solved_bv, current_game_bv)
                                         prev_level = self.__level
                                         self.__level = self.__level - (self.__level - est_level) * self.__DEC_FACTOR
                                         if self.__level < 1.0:
@@ -314,7 +315,7 @@ class AutoPVPApp(object):
                                     elif winner_uid == opponent_uid:
                                         logger.info('The opponent won the battle ...')
                                         current_game_finished_time = time.time()
-                                        est_level = self.__get_est_level(current_game_difficulty, current_game_bv, current_game_finished_time - current_game_started_time)
+                                        est_level = self.__get_est_level(current_game_difficulty, current_game_finished_time - current_game_started_time, current_game_opponent_solved_bv, current_game_bv)
                                         prev_level = self.__level
                                         self.__level = self.__level + (est_level - self.__level) * self.__INC_FACTOR
                                         if self.__level > 10.0:
