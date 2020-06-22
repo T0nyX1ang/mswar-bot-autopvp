@@ -238,8 +238,6 @@ class AutoPVPApp(object):
                                         logger.info('The opponent is kicked out of the room ...')
                                     else:
                                         logger.info('The opponent exited the room ...')
-                                        # await ws.send_str(self.__get_edit_room_message())
-                                        # await ws.send_str(self.__get_exit_room_message())
                                 elif text_message['url'] == 'pvp/room/ready' and opponent_uid == text_message['uid'] and text_message['ready']:
                                     logger.info('The opponent got ready ...')
                                     await ws.send_str(self.__get_start_battle_message())
@@ -329,6 +327,8 @@ class AutoPVPApp(object):
                                         self.__DEC_FACTOR = self.__DEC_FACTOR / 2.0 if self.__DEC_FACTOR > 0.05 else 0.04
                                         logger.info('The increasing factor is set to: %.3f' % (self.__INC_FACTOR))
                                         logger.info('The decreasing factor is set to: %.3f' % (self.__DEC_FACTOR))
+                                elif text_message['url'] == 'pvp/room/user/exit' and opponent_uid == text_message['user']['pvp']['uid']:
+                                    logger.info('The opponent ran away ...')
 
                         else:
                             logger.warning('Something weird is happening, HTTP code: %d' % text_message['code'])
