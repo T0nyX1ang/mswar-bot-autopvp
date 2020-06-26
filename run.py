@@ -4,7 +4,7 @@ import account_config
 import asyncio
 import traceback
 
-app = AutoPVPApp(config=account_config, level=2.0)
+app = AutoPVPApp(config=account_config)
 bot_restart_counter = 1
 
 try:

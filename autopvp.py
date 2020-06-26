@@ -11,13 +11,13 @@ import hashlib
 import traceback
 
 class AutoPVPApp(object):
-    def __init__(self, config, level=2.0):
+    def __init__(self, config):
         logger.info('Initializing bot, loading account and establishing websocket connection ...')
         self.__uid = config.uid
         self.__token = config.token
         self.__host = '119.29.91.152:8080'
         self.__url = 'http://' + self.__host + '/MineSweepingWar/socket/pvp/' + self.__uid
-        self.__level = level
+        self.__level = 2.0
         self.__level_hold_on = False
         self.__MAX_LEVEL = 11.5
         self.__MIN_LEVEL = 0.5
@@ -213,6 +213,12 @@ class AutoPVPApp(object):
         est_level = score / 10
         return est_level
 
+    def __get_default_level(self, user_level):
+        level = 0.5 * user_level + 0.5 if user_level >= 0 else 4.0
+        if level > 4.0:
+            level = 4.0
+        return level
+
     async def run(self):
         async with aiohttp.ClientSession() as session:
             async with session.ws_connect(url=self.__url, heartbeat=10.0, headers=self.__generate_headers()) as ws:
@@ -240,6 +246,7 @@ class AutoPVPApp(object):
                                 elif text_message['url'] == 'pvp/room/user/enter' and self.__uid != text_message['user']['pvp']['uid']:
                                     opponent_uid = text_message['user']['pvp']['uid']
                                     logger.info('An opponent entered the room ...')
+                                    self.__level = self.__get_default_level(text_message['user']['user']['timingLevel'])
                                     if opponent_uid in ban_list:
                                         logger.info('The opponent is in the ban list ...')
                                         await ws.send_str(self.__get_room_kick_out_message(uid=opponent_uid))
@@ -253,6 +260,7 @@ class AutoPVPApp(object):
                                     await ws.send_str(self.__get_start_battle_message())
                                 elif text_message['url'] == 'pvp/room/update' and self.__uid in text_message['room']['userIdList']:
                                     # logger.info(text_message['room']['userIdList'])
+                                    await ws.send_str(self.__get_level_status_message())
                                     logger.info('The room status has been updated ...')
                                     if text_message['room']['expired']:
                                         logger.info('The room has expired ...')
@@ -270,7 +278,6 @@ class AutoPVPApp(object):
                                 elif text_message['url'] == 'pvp/room/exit':
                                     # keep alive
                                     self.__level_hold_on = False
-                                    self.__level = 2.0
                                     self.__INC_FACTOR = 0.24
                                     self.__DEC_FACTOR = 0.08
                                     opponent_uid = ''
