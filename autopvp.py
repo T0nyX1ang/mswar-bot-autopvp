@@ -19,6 +19,7 @@ class AutoPVPApp(object):
         self.__url = 'http://' + self.__host + '/MineSweepingWar/socket/pvp/' + self.__uid
         self.__level = 2.0
         self.__level_hold_on = False
+        self.__current_game_left = 20
         self.__MAX_LEVEL = 11.5
         self.__MIN_LEVEL = 0.5
         self.__INC_FACTOR = 0.24
@@ -142,6 +143,11 @@ class AutoPVPApp(object):
         level_status = {'url': 'room/message', 'msg': '当前等级: LV %.3f' % self.__level}
         return self.__format_message(level_status)
 
+    def __get_left_games_message(self) -> str:
+        logger.info('The bot is reminding left games...')
+        left_games = {'url': 'room/message', 'msg': '剩余游戏局数: %d，机器人将在剩余次数用尽后自动退出房间。' % self.__current_game_left}
+        return self.__format_message(left_games)
+
     def __user_message_parser(self, stripped_arg) -> tuple:
         logger.info('The bot is parsing user-input configurations ...')
         if stripped_arg:
@@ -247,6 +253,8 @@ class AutoPVPApp(object):
                                     opponent_uid = text_message['user']['pvp']['uid']
                                     logger.info('An opponent entered the room ...')
                                     self.__level = self.__get_default_level(text_message['user']['user']['timingLevel'])
+                                    if text_message['user']['user']['vip']:
+                                        self.__current_game_left = 50 
                                     if opponent_uid in ban_list:
                                         logger.info('The opponent is in the ban list ...')
                                         await ws.send_str(self.__get_room_kick_out_message(uid=opponent_uid))
@@ -259,15 +267,20 @@ class AutoPVPApp(object):
                                     logger.info('The opponent got ready ...')
                                     await ws.send_str(self.__get_start_battle_message())
                                 elif text_message['url'] == 'pvp/room/update' and self.__uid in text_message['room']['userIdList']:
-                                    # logger.info(text_message['room']['userIdList'])
-                                    await ws.send_str(self.__get_level_status_message())
-                                    logger.info('The room status has been updated ...')
                                     if text_message['room']['expired']:
                                         logger.info('The room has expired ...')
                                     if text_message['room']['gaming']:
                                         is_gaming = True
                                         await ws.send_str(self.__get_battle_board_message())
+                                        self.__current_game_left -= 1
                                     else:
+                                        logger.info('The room status has been updated ...')
+                                        await ws.send_str(self.__get_level_status_message())
+                                        if self.__current_game_left <= 5:
+                                            await ws.send_str(self.__get_left_games_message())
+                                        if self.__current_game_left <= 0:
+                                            await ws.send_str(self.__get_exit_room_message())
+
                                         if opponent_uid == text_message['room']['users'][0]['pvp']['uid']:
                                             if text_message['room']['coin'] == 0 and len(text_message['room']['password']) == 0 and text_message['room']['minesweeperAutoOpen'] and not text_message['room']['minesweeperFlagForbidden'] and text_message['room']['round'] == 1 and text_message['room']['maxNumber'] == 2: 
                                                 await ws.send_str(self.__get_ready_status_message())
@@ -280,6 +293,7 @@ class AutoPVPApp(object):
                                     self.__level_hold_on = False
                                     self.__INC_FACTOR = 0.24
                                     self.__DEC_FACTOR = 0.08
+                                    self.__current_game_left = 20
                                     opponent_uid = ''
                                     logger.info('The bot left the room ...')
                                     logger.info('Re-creating the room ...')
@@ -357,6 +371,3 @@ class AutoPVPApp(object):
 
                     elif msg.type == aiohttp.WSMsgType.ERROR:
                         break
-
-        logger.info('Restarting the bot in 3 seconds ...')
-        time.sleep(3)
