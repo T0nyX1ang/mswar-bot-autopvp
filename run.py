@@ -19,8 +19,8 @@ while True:
     except KeyboardInterrupt:
         break    
     except Exception as e:
-        break
         logger.critical(traceback.format_exc())
+        break
 
     bot_restart_counter += 1
 
