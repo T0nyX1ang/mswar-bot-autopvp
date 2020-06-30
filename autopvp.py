@@ -235,7 +235,7 @@ class AutoPVPApp(object):
 
                 async for msg in ws:
                     if msg.type == aiohttp.WSMsgType.TEXT:
-                        logger.debug('[Recv][<-]: %s' % str(msg.data))
+                        logger.debug('[Recv][<-]: %s' % msg.data.decode('utf-8'))
                         text_message = json.loads(msg.data)
 
                         if 'url' in text_message:
