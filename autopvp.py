@@ -67,7 +67,7 @@ class AutoPVPApp(object):
 
     def __format_message(self, message):
         ready = json.dumps(message, separators=(',', ':'), sort_keys=True)
-        logger.debug('[Send][->]: %s' % str(ready))
+        logger.debug('[Send][->]: %s' % ready)
         return ready
 
     def __get_enter_room_message(self) -> str:
@@ -235,7 +235,7 @@ class AutoPVPApp(object):
 
                 async for msg in ws:
                     if msg.type == aiohttp.WSMsgType.TEXT:
-                        logger.debug('[Recv][<-]: %s' % msg.data.decode('utf-8'))
+                        logger.debug('[Recv][<-]: %s' % msg.data)
                         text_message = json.loads(msg.data)
 
                         if 'url' in text_message:
