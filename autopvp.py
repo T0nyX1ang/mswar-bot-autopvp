@@ -370,4 +370,5 @@ class AutoPVPApp(object):
                             break
 
                     elif msg.type == aiohttp.WSMsgType.ERROR:
+                        logger.warning('The websocket connection encounters an error: %s' % msg.data)
                         break
