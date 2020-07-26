@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 from autopvp import AutoPVPApp
 from log import logger
 from aiohttp.client_exceptions import ClientConnectorError
