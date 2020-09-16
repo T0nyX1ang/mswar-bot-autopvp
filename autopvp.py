@@ -2,6 +2,8 @@ from base64 import b64encode
 from board import get_board, get_board_result
 from log import logger
 from ban import ban_list
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad, unpad
 import os
 import math
 import json
@@ -16,6 +18,7 @@ class AutoPVPApp(object):
         self.__uid = config.uid
         self.__token = config.token
         self.__host = '119.29.91.152:8080'
+        self.__compat_version = 111
         self.__url = 'http://' + self.__host + '/MineSweepingWar/socket/pvp/' + self.__uid
         self.__level = 2.0
         self.__level_hold_on = False
@@ -24,23 +27,33 @@ class AutoPVPApp(object):
         self.__MIN_LEVEL = 0.5
         self.__INC_FACTOR = 0.24
         self.__DEC_FACTOR = 0.08
+        self.__AES_enc = AES.new(config.enc_key.encode(), AES.MODE_ECB)
+        self.__AES_dec = AES.new(config.dec_key.encode(), AES.MODE_ECB)
+        self.__salt = config.salt
+
+    def aes_encrypt(self, message):
+        return self.__AES_enc.encrypt(pad(message, AES.block_size)).hex().upper()
+
+    def aes_decrypt(self, message):
+        return unpad(self.__AES_dec.decrypt(message), AES.block_size)
 
     def __generate_headers(self):
         timestamp = str(int(time.time() * 1000))
         api_key_resource = self.__uid + self.__token + timestamp + 'api'
         headers = {
             "Host": self.__host, 
-            "User-Agent": "okhttp/4.2.2",
+            "User-Agent": "okhttp/4.7.2",
             "Accept-Encoding": "gzip", 
             "api-key": hashlib.md5(api_key_resource.encode()).hexdigest(),
             "channel": "Android", 
             "device": "",
-            "version": "107", 
+            "version": str(self.__compat_version), 
             "time-stamp": timestamp, 
             "token": self.__token, 
             "uid": self.__uid,
             "Connection": "Upgrade", 
             "Upgrade": "websocket", 
+            "Sec-WebSocket-Extensions": "permessage-deflate",
             "Sec-WebSocket-Key": b64encode(os.urandom(16)),
             "Sec-WebSocket-Version": "13"
         }
@@ -66,13 +79,17 @@ class AutoPVPApp(object):
         return default
 
     def __format_message(self, message):
-        ready = json.dumps(message, separators=(',', ':'), sort_keys=True)
-        logger.debug('[Send][->]: %s' % ready)
-        return ready
+        ready = json.dumps(message, separators=(',', ':'))
+        encrypted = self.aes_encrypt(ready.encode())
+        ready_to_hash = encrypted + self.__salt
+        encrypted_hash = hashlib.md5(ready_to_hash.encode()).hexdigest()
+        message = encrypted_hash + encrypted
+        logger.debug('[Send][->]: %s' % (message))
+        return message
 
     def __get_enter_room_message(self) -> str:
         logger.info('The bot is entering the whole pvp room ...')
-        enter_room = {'version': 107, 'url': "enter"}
+        enter_room = {'version': self.__compat_version, 'url': "enter"}
         return self.__format_message(enter_room)
 
     def __get_create_room_message(self) -> str:
@@ -236,7 +253,8 @@ class AutoPVPApp(object):
                 async for msg in ws:
                     if msg.type == aiohttp.WSMsgType.TEXT:
                         logger.debug('[Recv][<-]: %s' % msg.data)
-                        text_message = json.loads(msg.data)
+                        decrypt_message = self.aes_decrypt(bytes.fromhex(msg.data[32:]))
+                        text_message = json.loads(decrypt_message)
 
                         if 'url' in text_message:
                             if not is_gaming:
@@ -249,7 +267,7 @@ class AutoPVPApp(object):
 
                                 if text_message['url'] == 'pvp/enter':
                                     await ws.send_str(self.__get_create_room_message())
-                                elif text_message['url'] == 'pvp/room/user/enter' and self.__uid != text_message['user']['pvp']['uid']:
+                                elif text_message['url'] == 'pvp/room/enter/event' and self.__uid != text_message['user']['pvp']['uid']:
                                     opponent_uid = text_message['user']['pvp']['uid']
                                     logger.info('An opponent entered the room ...')
                                     self.__level = self.__get_default_level(text_message['user']['user']['timingLevel'])
@@ -258,7 +276,7 @@ class AutoPVPApp(object):
                                     if opponent_uid in ban_list:
                                         logger.info('The opponent is in the ban list ...')
                                         await ws.send_str(self.__get_room_kick_out_message(uid=opponent_uid))
-                                elif text_message['url'] == 'pvp/room/user/exit' and opponent_uid == text_message['user']['pvp']['uid']:
+                                elif text_message['url'] == 'pvp/room/exit/event' and opponent_uid == text_message['user']['pvp']['uid']:
                                     if opponent_uid in ban_list:
                                         logger.info('The opponent is kicked out of the room ...')
                                     else:
