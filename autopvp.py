@@ -28,8 +28,8 @@ class AutoPVPApp(object):
         self.__INC_FACTOR = 0.24
         self.__DEC_FACTOR = 0.08
         self.__RESUMED = True
-        self.__AES_enc = AES.new(config.enc_key.encode(), AES.MODE_ECB)
-        self.__AES_dec = AES.new(config.dec_key.encode(), AES.MODE_ECB)
+        self.__AES_enc = AES.new(config.key.encode(), AES.MODE_ECB)
+        self.__AES_dec = AES.new(config.key.encode(), AES.MODE_ECB)
         self.__salt = config.salt
 
     def aes_encrypt(self, message):
