@@ -27,6 +27,7 @@ class AutoPVPApp(object):
         self.__MIN_LEVEL = 0.5
         self.__INC_FACTOR = 0.24
         self.__DEC_FACTOR = 0.08
+        self.__RESUMED = True
         self.__AES_enc = AES.new(config.enc_key.encode(), AES.MODE_ECB)
         self.__AES_dec = AES.new(config.dec_key.encode(), AES.MODE_ECB)
         self.__salt = config.salt
@@ -98,17 +99,13 @@ class AutoPVPApp(object):
         create_room['url'] = 'room/minesweeper/create'
         return self.__format_message(create_room)
 
-    # def __get_edit_room_message(self, row: int=8, column: int=8, mines: int=10, bvs: float=2.0) -> str:
-    #     logger.info('The bot is changing the room configurations ...')
-    #     self.__bvs = bvs
-    #     edit_room = self.__default_room_config(generate_id=False)
-    #     edit_room.pop('anonymous')
-    #     edit_room.pop('limitRank')
-    #     edit_room['column'] = column
-    #     edit_room['row'] = row
-    #     edit_room['mine'] = mines
-    #     edit_room['url'] = 'room/minesweeper/edit'
-    #     return self.__format_message(edit_room)
+    def __get_edit_room_message(self) -> str:
+        logger.info('The bot is resuming the room configurations ...')
+        edit_room = self.__default_room_config(generate_id=False)
+        edit_room.pop('anonymous')
+        edit_room.pop('limitRank')
+        edit_room['url'] = 'room/minesweeper/edit'
+        return self.__format_message(edit_room)
 
     def __get_ready_status_message(self, ready: bool=True) -> str:
         if ready:
@@ -270,6 +267,7 @@ class AutoPVPApp(object):
                                 elif text_message['url'] == 'pvp/room/enter/event' and self.__uid != text_message['user']['pvp']['uid']:
                                     opponent_uid = text_message['user']['pvp']['uid']
                                     logger.info('An opponent entered the room ...')
+                                    self.__RESUMED = False
                                     self.__level = self.__get_default_level(text_message['user']['user']['timingLevel'])
                                     if text_message['user']['user']['vip']:
                                         self.__current_game_left = 50 
@@ -304,8 +302,10 @@ class AutoPVPApp(object):
                                                 await ws.send_str(self.__get_ready_status_message())
                                             else:
                                                 await ws.send_str(self.__get_room_edit_warning_message())
-                                        if len(opponent_uid) != 0 and (len(text_message['room']['userIdList']) != 2 or opponent_uid not in text_message['room']['userIdList']) and opponent_uid not in ban_list:
-                                            await ws.send_str(self.__get_exit_room_message())
+                                        if len(opponent_uid) != 0 and (len(text_message['room']['userIdList']) != 2 or opponent_uid not in text_message['room']['userIdList']) and opponent_uid not in ban_list and not self.__RESUMED:
+                                            await ws.send_str(self.__get_edit_room_message())
+                                            self.__RESUMED = True
+
                                 elif text_message['url'] == 'pvp/room/exit':
                                     # keep alive
                                     self.__level_hold_on = False
