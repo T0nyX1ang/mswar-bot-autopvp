@@ -1,2 +1,3 @@
 aiohttp[speedups]>=3.6.1
 pycryptodome>=3.9.6
+apscheduler>=3.6.3
