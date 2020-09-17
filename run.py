@@ -3,6 +3,7 @@
 from autopvp import AutoPVPApp
 from log import logger
 from aiohttp.client_exceptions import ClientConnectorError
+from apscheduler.schedulers.background import BackgroundScheduler
 import account_config
 import asyncio
 import traceback
@@ -10,6 +11,10 @@ import time
 
 app = AutoPVPApp(config=account_config)
 bot_restart_counter = 1
+scheduler = BackgroundScheduler()
+scheduler.add_job(func=app.reset_user_list, trigger='cron', hour='*', misfire_grace_time=30)
+scheduler.start()
+logger.info('Scheduler has been activated ...')
 
 while True:
     logger.info('Bot running count: %d' % (bot_restart_counter))
@@ -30,3 +35,5 @@ while True:
     time.sleep(3)
 
 logger.info('Bot stopped now ...')
+scheduler.shutdown()
+logger.info('Scheduler has been deactivated ...')
