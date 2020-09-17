@@ -81,11 +81,12 @@ class AutoPVPApp(object):
 
     def __format_message(self, message):
         ready = json.dumps(message, separators=(',', ':'))
+        logger.debug('[Encrypt]: %s' % ready)
         encrypted = self.aes_encrypt(ready.encode())
         ready_to_hash = encrypted + self.__salt
         encrypted_hash = hashlib.md5(ready_to_hash.encode()).hexdigest()
         message = encrypted_hash + encrypted
-        logger.debug('[Send][->]: %s' % (message))
+        logger.debug('[Send][->]: %s' % message)
         return message
 
     def __get_enter_room_message(self) -> str:
@@ -252,6 +253,7 @@ class AutoPVPApp(object):
                         logger.debug('[Recv][<-]: %s' % msg.data)
                         decrypt_message = self.aes_decrypt(bytes.fromhex(msg.data[32:]))
                         text_message = json.loads(decrypt_message)
+                        logger.debug('[Decrypt]: %s' % text_message)
 
                         if 'url' in text_message:
                             if not is_gaming:
