@@ -96,6 +96,11 @@ class AutoPVPApp(object):
         enter_room = {'version': self.__compat_version, 'url': "enter"}
         return self.__format_message(enter_room)
 
+    def __get_hello_message(self) -> str:
+        logger.info('The bot is sending a hello message ...')
+        hello_message = {'url': 'room/message', 'msg': '--- 请忽略上方信息 ---\n欢迎进入自动对战房间，此房间尚在测试阶段，可能有较多bug，如遇bug，请联系项目开发者tonyXFY。'}
+        return self.__format_message(hello_message)
+
     def __get_create_room_message(self) -> str:
         logger.info('The bot is creating a single battle room ... ')
         create_room = self.__default_room_config(generate_id=True)
@@ -276,16 +281,17 @@ class AutoPVPApp(object):
                                 elif text_message['url'] == 'pvp/room/enter/event' and self.__uid != text_message['user']['pvp']['uid']:
                                     opponent_uid = text_message['user']['pvp']['uid']
                                     logger.info('An opponent entered the room ...')
+                                    await ws.send_str(self.__get_hello_message())
                                     self.__RESUMED = False
                                     self.__level = self.__get_default_level(text_message['user']['user']['timingLevel'])
                                     if opponent_uid not in self.__USER_LIST:
                                         self.__USER_LIST[opponent_uid] = {}
                                         if text_message['user']['user']['vip']:
-                                            self.__USER_LIST[opponent_uid]['original'] = 30
-                                            self.__USER_LIST[opponent_uid]['left'] = 30
+                                            self.__USER_LIST[opponent_uid]['original'] = self.__VIP_COUNTS
+                                            self.__USER_LIST[opponent_uid]['left'] = self.__VIP_COUNTS
                                         else:
-                                            self.__USER_LIST[opponent_uid]['original'] = 6
-                                            self.__USER_LIST[opponent_uid]['left'] = 6
+                                            self.__USER_LIST[opponent_uid]['original'] = self.__NORMAL_COUNTS
+                                            self.__USER_LIST[opponent_uid]['left'] = self.__NORMAL_COUNTS
                                     if opponent_uid in ban_list or self.__USER_LIST[opponent_uid]['left'] <= 0:
                                         logger.info('The opponent is in the ban list ...')
                                         await ws.send_str(self.__get_room_kick_out_message(uid=opponent_uid))
