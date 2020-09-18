@@ -25,7 +25,7 @@ while True:
         logger.warning('The connection is down, please check your connection ...')
     except KeyboardInterrupt:
         break    
-    except Exception as e:
+    except Exception:
         logger.critical(traceback.format_exc())
         break
 
