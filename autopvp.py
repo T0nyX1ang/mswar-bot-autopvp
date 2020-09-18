@@ -19,6 +19,7 @@ class AutoPVPApp(object):
         self.__token = config.token
         self.__host = '119.29.91.152:8080'
         self.__compat_version = 111
+        self.__salt = config.salt
         self.__url = 'http://' + self.__host + '/MineSweepingWar/socket/pvp/' + self.__uid
         self.__level = 2.0
         self.__level_hold_on = False
@@ -29,8 +30,9 @@ class AutoPVPApp(object):
         self.__RESUMED = True
         self.__AES_enc = AES.new(config.key.encode(), AES.MODE_ECB)
         self.__AES_dec = AES.new(config.key.encode(), AES.MODE_ECB)
-        self.__salt = config.salt
         self.__USER_LIST = {}
+        self.__NORMAL_COUNTS = 8
+        self.__VIP_COUNTS = 20
 
     def aes_encrypt(self, message):
         return self.__AES_enc.encrypt(pad(message, AES.block_size)).hex().upper()
@@ -160,7 +162,7 @@ class AutoPVPApp(object):
 
     def __get_left_games_message(self, uid) -> str:
         logger.info('The bot is reminding left games...')
-        left_games = {'url': 'room/message', 'msg': '剩余游戏局数: %d，玩家将在本小时内无法游戏。' % self.__USER_LIST[uid]}
+        left_games = {'url': 'room/message', 'msg': '剩余游戏局数: %d，玩家将在本小时内无法游戏。' % self.__USER_LIST[uid]['left']}
         return self.__format_message(left_games)
 
     def __user_message_parser(self, stripped_arg) -> tuple:
@@ -242,7 +244,9 @@ class AutoPVPApp(object):
 
     def reset_user_list(self):
         logger.info('Resuming user list ...')
-        self.__USER_LIST = {}
+        for user in self.__USER_LIST.keys():
+            self.__USER_LIST[user]['left'] = self.__USER_LIST[user]['original']
+        logger.debug('Current user list: %s' % self.__USER_LIST)
 
     async def run(self):
         async with aiohttp.ClientSession() as session:
@@ -254,10 +258,9 @@ class AutoPVPApp(object):
 
                 async for msg in ws:
                     if msg.type == aiohttp.WSMsgType.TEXT:
-                        logger.debug('[Recv][<-]: %s' % msg.data)
                         decrypt_message = self.aes_decrypt(bytes.fromhex(msg.data[32:]))
                         text_message = json.loads(decrypt_message)
-                        logger.debug('[Decrypt]: %s' % text_message)
+                        logger.debug('[Recv][<-]: %s' % text_message)
 
                         if 'url' in text_message:
                             if not is_gaming:
@@ -276,11 +279,14 @@ class AutoPVPApp(object):
                                     self.__RESUMED = False
                                     self.__level = self.__get_default_level(text_message['user']['user']['timingLevel'])
                                     if opponent_uid not in self.__USER_LIST:
+                                        self.__USER_LIST[opponent_uid] = {}
                                         if text_message['user']['user']['vip']:
-                                            self.__USER_LIST[opponent_uid] = 30
+                                            self.__USER_LIST[opponent_uid]['original'] = 30
+                                            self.__USER_LIST[opponent_uid]['left'] = 30
                                         else:
-                                            self.__USER_LIST[opponent_uid] = 6
-                                    if opponent_uid in ban_list or self.__USER_LIST[opponent_uid] <= 0:
+                                            self.__USER_LIST[opponent_uid]['original'] = 6
+                                            self.__USER_LIST[opponent_uid]['left'] = 6
+                                    if opponent_uid in ban_list or self.__USER_LIST[opponent_uid]['left'] <= 0:
                                         logger.info('The opponent is in the ban list ...')
                                         await ws.send_str(self.__get_room_kick_out_message(uid=opponent_uid))
                                 elif text_message['url'] == 'pvp/room/exit/event' and opponent_uid == text_message['user']['pvp']['uid']:
@@ -297,13 +303,13 @@ class AutoPVPApp(object):
                                     if text_message['room']['gaming']:
                                         is_gaming = True
                                         await ws.send_str(self.__get_battle_board_message())
-                                        self.__USER_LIST[opponent_uid] -= 1
+                                        self.__USER_LIST[opponent_uid]['left'] -= 1
                                     else:
                                         logger.info('The room status has been updated ...')
                                         await ws.send_str(self.__get_level_status_message())
-                                        if opponent_uid and 0 < self.__USER_LIST[opponent_uid] <= 3:
+                                        if opponent_uid and self.__USER_LIST[opponent_uid]['left'] <= 3:
                                             await ws.send_str(self.__get_left_games_message(uid=opponent_uid))
-                                        if opponent_uid and self.__USER_LIST[opponent_uid] <= 0:
+                                        if opponent_uid and self.__USER_LIST[opponent_uid]['left'] <= 0:
                                             await ws.send_str(self.__get_exit_room_message())
                                         if opponent_uid == text_message['room']['users'][0]['pvp']['uid']:
                                             if text_message['room']['coin'] == 0 and len(text_message['room']['password']) == 0 and text_message['room']['minesweeperAutoOpen'] and not text_message['room']['minesweeperFlagForbidden'] and text_message['room']['round'] == 1 and text_message['room']['maxNumber'] == 2: 
