@@ -107,12 +107,24 @@ class AutoPVPApp(object):
         create_room['url'] = 'room/minesweeper/create'
         return self.__format_message(create_room)
 
-    def __get_edit_room_message(self) -> str:
+    def __get_edit_room_message(self, mode=2) -> str:
         logger.info('The bot is resuming the room configurations ...')
         edit_room = self.__default_room_config(generate_id=False)
         edit_room.pop('anonymous')
         edit_room.pop('limitRank')
         edit_room['url'] = 'room/minesweeper/edit'
+        if mode == 1:
+            edit_room['row'] = 8
+            edit_room['column'] = 8
+            edit_room['mine'] = 10
+        elif mode == 3:
+            edit_room['row'] = 30
+            edit_room['column'] = 16
+            edit_room['mine'] = 99
+        elif mode == 4:
+            edit_room['row'] = 16
+            edit_room['column'] = 30
+            edit_room['mine'] = 99
         return self.__format_message(edit_room)
 
     def __get_ready_status_message(self, ready: bool=True) -> str:
@@ -165,56 +177,61 @@ class AutoPVPApp(object):
         level_status = {'url': 'room/message', 'msg': '当前等级: LV %.3f' % self.__level}
         return self.__format_message(level_status)
 
+    def __get_error_command_message(self) -> str:
+        logger.info('The bot is getting level status ...')
+        error_command = {'url': 'room/message', 'msg': '错误的语法指令'}
+        return self.__format_message(error_command)
+
     def __get_left_games_message(self, uid) -> str:
         logger.info('The bot is reminding left games...')
         left_games = {'url': 'room/message', 'msg': '剩余游戏局数: %d，玩家将在本小时内无法游戏。' % self.__USER_LIST[uid]['left']}
         return self.__format_message(left_games)
 
-    def __user_message_parser(self, stripped_arg) -> tuple:
+    def __user_message_parser(self, split_arg) -> tuple:
         logger.info('The bot is parsing user-input configurations ...')
-        if stripped_arg:
-            stripped_arg_new = stripped_arg.replace('  ', ' ')
-            while stripped_arg != stripped_arg_new:
-                stripped_arg = stripped_arg_new
-                stripped_arg_new = stripped_arg_new.replace('  ', ' ')    
-            split_arg = stripped_arg.split(' ')
-            argc = len(split_arg)
-            try:
-                if split_arg[0] in ['level', 'lv', 'lvl'] and argc >= 2:
-                    if split_arg[1] in ['up', 'u']:
-                        self.__level = self.__level + 0.5 if self.__level <= self.__MAX_LEVEL - 0.5 else self.__MAX_LEVEL
-                        logger.info('Leveling up to %.3f...' % self.__level)
-                    elif split_arg[1] in ['down', 'd']:
-                        self.__level = self.__level - 0.5 if self.__level >= self.__MIN_LEVEL + 0.5 else self.__MIN_LEVEL
-                        logger.info('Leveling down to %.3f...' % self.__level)
-                    elif split_arg[1] in ['status', 's']:
-                        logger.info('Level status: %.3f...' % self.__level)
-                    elif split_arg[1] in ['holdon', 'n']:
-                        logger.info('Level will not change automatically ...')
-                        self.__level_hold_on = True
-                    elif split_arg[1] in ['holdoff', 'f']:
-                        logger.info('Level will change automatically ...')
-                        self.__level_hold_on = False
-                    else:
-                        level = float(split_arg[1])
-                        if level > self.__MAX_LEVEL or level < self.__MIN_LEVEL:
-                            logger.warning('Bound exceeded, will not change level ...')
-                            return False
-                        else:
-                            logger.info('Changing level to %.3f ...' % level)
-                            self.__level = level
-                elif split_arg[0] in ['level', 'lv', 'lvl'] and argc == 1:
+        argc = len(split_arg)
+        try:
+            if split_arg[0] in ['level', 'lv', 'lvl'] and argc >= 2:
+                if split_arg[1] in ['up', 'u']:
+                    self.__level = self.__level + 0.5 if self.__level <= self.__MAX_LEVEL - 0.5 else self.__MAX_LEVEL
+                    logger.info('Leveling up to %.3f...' % self.__level)
+                elif split_arg[1] in ['down', 'd']:
+                    self.__level = self.__level - 0.5 if self.__level >= self.__MIN_LEVEL + 0.5 else self.__MIN_LEVEL
+                    logger.info('Leveling down to %.3f...' % self.__level)
+                elif split_arg[1] in ['status', 's']:
                     logger.info('Level status: %.3f...' % self.__level)
+                elif split_arg[1] in ['holdon', 'n']:
+                    logger.info('Level will not change automatically ...')
+                    self.__level_hold_on = True
+                elif split_arg[1] in ['holdoff', 'f']:
+                    logger.info('Level will change automatically ...')
+                    self.__level_hold_on = False
                 else:
-                    return False
-                if argc >= 3:
-                    logger.warning('Several arguments have not been parsed.')
-                return True
-            except Exception as e:
-                logger.warning('Incorrect input: (%s)' % stripped_arg)
-                logger.debug(traceback.format_exc())
-                return False
-        return False
+                    level = float(split_arg[1])
+                    if level > self.__MAX_LEVEL or level < self.__MIN_LEVEL:
+                        logger.warning('Bound exceeded, will not change level ...')
+                        return False
+                    else:
+                        logger.info('Changing level to %.3f ...' % level)
+                        self.__level = level
+                return self.__get_level_status_message()
+            elif split_arg[0] in ['level', 'lv', 'lvl'] and argc == 1:
+                logger.info('Level status: %.3f...' % self.__level)
+                return self.__get_level_status_message()
+            elif split_arg[0] in ['beg', 'b', 'int', 'i', 'exp-v', 'ev', 'e1', 'exp-h', 'eh', 'e2']:
+                mode_ref = {
+                    'beg': 1, 'b': 1, 'int': 2, 'i': 2, 
+                    'exp-v': 3, 'ev': 3, 'e1': 3, 'exp-h': 4, 'eh': 4, 'e2': 4, 
+                }
+                mode = mode_ref[split_arg[0]]
+                logger.info('Setting room mode: %d' % mode)
+                return self.__get_edit_room_message(mode=mode)
+            else:
+                return self.__get_error_command_message()
+
+        except Exception as e:
+            logger.error(traceback.format_exc())
+            return self.__get_error_command_message()
 
     def __get_est_bvs(self, level, difficulty, bv):
         score = level * 10
@@ -336,10 +353,10 @@ class AutoPVPApp(object):
                                     logger.info('Re-creating the room ...')
                                     await ws.send_str(self.__get_create_room_message())
                                 elif text_message['url'] == 'pvp/room/message' and opponent_uid == text_message['msg']['user']['uid']:
-                                    message = text_message['msg']['message'].strip()
-                                    is_parsed = self.__user_message_parser(message)
-                                    if is_parsed:
-                                        await ws.send_str(self.__get_level_status_message())
+                                    message = text_message['msg']['message'].strip().split()
+                                    if message:
+                                        result = self.__user_message_parser(message)
+                                        await ws.send_str(result)
 
                             else:
                                 if text_message['url'] == 'pvp/minesweeper/info':
@@ -403,7 +420,10 @@ class AutoPVPApp(object):
                                     logger.info('The opponent ran away ...')
 
                         else:
-                            logger.warning('Something weird is happening, HTTP code: %d' % text_message['code'])
+                            code = text_message['code']
+                            logger.warning('Something weird is happening, HTTP code: %d' % code)
+                            if code == 10100:
+                                logger.error('Incompatible version type, please update your version number.')
                             break
 
                     elif msg.type == aiohttp.WSMsgType.ERROR:
