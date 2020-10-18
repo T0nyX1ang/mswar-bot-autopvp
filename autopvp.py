@@ -17,22 +17,22 @@ class AutoPVPApp(object):
         logger.info('Initializing bot, loading account and establishing websocket connection ...')
         self.__uid = config.uid
         self.__token = config.token
-        self.__host = '119.29.91.152:8080'
-        self.__compat_version = 111
+        self.__host = config.host
+        self.__compat_version = config.version
         self.__salt = config.salt
         self.__url = 'http://' + self.__host + '/MineSweepingWar/socket/pvp/' + self.__uid
         self.__level = 2.0
         self.__level_hold_on = False
-        self.__MAX_LEVEL = 11.5
-        self.__MIN_LEVEL = 0.5
-        self.__INC_FACTOR = 0.24
-        self.__DEC_FACTOR = 0.08
+        self.__MAX_LEVEL = config.max_level
+        self.__MIN_LEVEL = config.min_level
+        self.__INC_FACTOR = config.inc_factor
+        self.__DEC_FACTOR = config.dec_factor
         self.__RESUMED = True
         self.__AES_enc = AES.new(config.key.encode(), AES.MODE_ECB)
         self.__AES_dec = AES.new(config.key.encode(), AES.MODE_ECB)
         self.__USER_LIST = {}
-        self.__NORMAL_COUNTS = 8
-        self.__VIP_COUNTS = 20
+        self.__NORMAL_COUNTS = config.normal_max
+        self.__VIP_COUNTS = config.vip_max
 
     def aes_encrypt(self, message):
         return self.__AES_enc.encrypt(pad(message, AES.block_size)).hex().upper()
