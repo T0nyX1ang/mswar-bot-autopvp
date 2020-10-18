@@ -329,7 +329,8 @@ class AutoPVPApp(object):
                                         self.__USER_LIST[opponent_uid]['left'] -= 1
                                     else:
                                         logger.info('The room status has been updated ...')
-                                        await ws.send_str(self.__get_level_status_message())
+                                        if not self.__RESUMED:
+                                            await ws.send_str(self.__get_level_status_message())
                                         if opponent_uid and self.__USER_LIST[opponent_uid]['left'] <= 3:
                                             await ws.send_str(self.__get_left_games_message(uid=opponent_uid))
                                         if opponent_uid and self.__USER_LIST[opponent_uid]['left'] <= 0:
