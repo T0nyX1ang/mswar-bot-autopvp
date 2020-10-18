@@ -9,12 +9,23 @@ Bot with pvp feature in minesweeper war, side project of mswar-bot.
 * Execute `run.py` with Python.
 
 ## Addtional Notice
-The program won't run without an valid account, please create the following file by yourself:
+The program won't run without an valid configuration, please create the following file by yourself:
 * `account_config.py`:
 ```py
-    # Fill in the uid and token below
-    uid = 'your-uid-here'
-    token = 'your-login-token-here' 
+	# Please set your user configurations here
+
+	host = str
+	uid = str
+	token = str
+	key = str
+	salt = str
+	version = int
+	max_level = float
+	min_level = float
+	inc_factor = float
+	dec_factor = float
+	normal_max = int
+	vip_max = int
 ```
 
 The program won't run without a ban list, please create the following file by yourself:
