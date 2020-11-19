@@ -174,6 +174,7 @@ class AutoPVPApp(object):
 
     def __get_level_status_message(self) -> str:
         logger.info('The bot is getting level status ...')
+        self.__level = abs(self.__level) # not sure why a complex is generated, change the sentence for safety.
         level_status = {'url': 'room/message', 'msg': '当前等级: LV %.3f' % self.__level}
         return self.__format_message(level_status)
 
