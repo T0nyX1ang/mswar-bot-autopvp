@@ -15,7 +15,7 @@ import traceback
 class AutoPVPApp(object):
     def __init__(self, config):
         logger.info('Initializing bot, loading account and establishing websocket connection ...')
-        self.__uid = config.uid
+        self.__uid = str(config.uid)
         self.__token = config.token
         self.__host = config.host
         self.__compat_version = config.version
