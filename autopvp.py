@@ -318,6 +318,9 @@ class AutoPVPApp(object):
                                         logger.info('The opponent is kicked out of the room ...')
                                     else:
                                         logger.info('The opponent exited the room ...')
+                                elif text_message['url'] == 'pvp/user/online' and opponent_uid == text_message['uid'] and text_message['offline']:
+                                    logger.info('The opponent is offline now, refreshing the room ...')
+                                    await ws.send_str(self.__get_exit_room_message())
                                 elif text_message['url'] == 'pvp/room/ready' and opponent_uid == text_message['uid'] and text_message['ready']:
                                     logger.info('The opponent got ready ...')
                                     await ws.send_str(self.__get_start_battle_message())
