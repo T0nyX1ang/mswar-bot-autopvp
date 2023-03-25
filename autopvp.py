@@ -20,7 +20,7 @@ class AutoPVPApp(object):
         self.__host = config.host
         self.__compat_version = config.version
         self.__salt = config.salt
-        self.__url = 'http://' + self.__host + '/MineSweepingWar/socket/pvp/' + self.__uid
+        self.__url = 'http://' + self.__host + '/MineSweeping/socket/pvp/' + self.__uid
         self.__level = 2.0
         self.__level_hold_on = False
         self.__MAX_LEVEL = config.max_level
